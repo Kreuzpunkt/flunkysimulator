@@ -111,6 +111,22 @@ message RegisterPlayerReq{
 	string playerName = 1;
 }
 
+message RegisterPlayerError{
+	EnumLoginErrorReason reason = 1;
+}
+
+enum EnumLoginErrorReason{
+	LOGIN_ERROR_REASON_UNKNOWN = 0;
+	// The name has leading or trailing whitespace.
+	LOGIN_ERROR_REASON_NOT_STRIPED = 1;
+	// The desired name is already taken.
+	LOGIN_ERROR_REASON_NAME_TAKEN = 2;
+	// The given secret does not match
+	LOGIN_ERROR_REASON_SECRET_MISMATCH = 3;
+	// The name is empty
+	LOGIN_ERROR_REASON_EMPTY = 4;
+}
+
 message AbgegebenResp{};
 
 message AbgegebenReq{

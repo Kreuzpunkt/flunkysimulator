@@ -1,15 +1,17 @@
 package simulator.view
 
+import com.google.protobuf.Any.pack
+import com.google.rpc.Code
+import com.google.rpc.Status
+import com.google.rpc.StatusProto
 import de.flunkyteam.endpoints.projects.simulator.*
-import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import io.grpc.protobuf.StatusProto.toStatusRuntimeException
 import io.grpc.stub.StreamObserver
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import simulator.DeactiveableHandler
-import simulator.control.GameController
-import simulator.control.MessageController
-import simulator.control.VideoController
+import simulator.control.*
 import simulator.control.VideoEvent
 
 class FlunkyServer(
@@ -30,15 +32,22 @@ class FlunkyServer(
         responseObserver?.onCompleted()
     }
 
-    override fun registerPlayer(request: RegisterPlayerReq?, responseObserver: StreamObserver<RegisterPlayerResp>?) {
+    override fun registerPlayer(request: RegisterPlayerReq?, responseObserver: StreamObserver<RegisterPlayerResp>) {
         val name = request!!.playerName
 
-        if (gameController.registerPlayer(name))
+        try {
+            gameController.registerPlayer(name)
             messageController.sendMessage(request.playerName, "hat sich registriert. Willkommen Athlet!")
-        //else
-        //messageController.sendMessage(request.playerName, "konnte sich nicht registrieren. Name schon vergeben?")
+            responseObserver.onNext(RegisterPlayerResp.getDefaultInstance())
+        } catch (le: LoginError) {
+            val status: Status = Status.newBuilder()
+                .setCode(Code.INVALID_ARGUMENT.number)
+                .setMessage("Name or secret wrong")
+                .addDetails(pack(le.toGRPC()))
+                .build()
+            responseObserver.onError(toStatusRuntimeException(status))
+        }
 
-        responseObserver!!.onNext(RegisterPlayerResp.getDefaultInstance())
         responseObserver.onCompleted()
     }
 
@@ -217,7 +226,7 @@ class FlunkyServer(
                 //fails if stream is closed
                 action(event)
             } catch (e: StatusRuntimeException) {
-                if (e.status.code == Status.Code.CANCELLED) {
+                if (e.status.code == io.grpc.Status.Code.CANCELLED) {
                     println("Another stream bites the dust. Message: \n ${e.message}")
                     deactiveableHandler.enabled = false
                     /*TODO delete handlers when connection gone but not while iterating
